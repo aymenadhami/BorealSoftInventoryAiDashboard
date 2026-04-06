@@ -39,5 +39,3 @@ Since this is a static demo, no build steps, servers, or API keys are required.
 2. Open `borealsoftdemo.html` in any modern web browser.
 3. Explore the tabs, interact with the charts, and test out the chat widget!
 
-## 📄 License
-[Insert License Here - e.g., MIT, Proprietary, etc.]
