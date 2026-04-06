@@ -1,0 +1,546 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Boreal Soft — Inventory Dashboard</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌲</text></svg>">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0c1117;--card:#161b26;--border:#1f2937;--accent:#22d3ee;--accentDim:rgba(34,211,238,.12);--blue:#3b82f6;--green:#10b981;--amber:#f59e0b;--red:#ef4444;--purple:#a78bfa;--text:#e5e7eb;--textMuted:#9ca3af;--textDim:#6b7280}
+body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+.topbar{position:sticky;top:0;z-index:100;background:rgba(12,17,23,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:center;height:56px;gap:16px}
+.topbar .logo{font-weight:800;font-size:17px;color:var(--accent);letter-spacing:-.5px;display:flex;align-items:center;gap:8px}
+.topbar .logo span{color:var(--textDim);font-weight:400;font-size:14px}
+.tab-bar{display:flex;gap:2px;margin-left:24px}
+.tab-btn{padding:8px 18px;border:none;background:none;color:var(--textDim);font-family:'Outfit';font-size:13px;font-weight:600;cursor:pointer;border-radius:6px;transition:all .15s}
+.tab-btn:hover{color:var(--text);background:rgba(255,255,255,.04)}
+.tab-btn.active{color:var(--accent);background:var(--accentDim)}
+
+.section{display:none;padding:24px;max-width:1300px;margin:0 auto}
+.section.active{display:block}
+.section-title{font-size:24px;font-weight:800;margin-bottom:4px;letter-spacing:-.5px}
+.section-sub{color:var(--textDim);font-size:13px;margin-bottom:24px}
+
+.kpi-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:24px}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 18px}
+.kpi-label{font-size:11px;font-weight:600;color:var(--textDim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.kpi-val{font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:700;letter-spacing:-1px}
+.kpi-val.cyan{color:var(--accent)}.kpi-val.green{color:var(--green)}.kpi-val.blue{color:var(--blue)}.kpi-val.purple{color:var(--purple)}
+
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:20px}
+.card-header{padding:14px 18px;border-bottom:1px solid var(--border);font-size:14px;font-weight:700}
+.card-body{padding:18px}
+.card canvas{max-height:300px}
+.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+@media(max-width:768px){.chart-grid{grid-template-columns:1fr}}
+
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:var(--textDim);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)}
+tbody td{padding:9px 14px;border-bottom:1px solid rgba(31,41,55,.5)}
+tbody tr:hover{background:rgba(255,255,255,.02)}
+.num{text-align:right;font-family:'JetBrains Mono',monospace;font-size:12px}
+.scrollable{max-height:500px;overflow-y:auto}
+.type-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+.type-ACCOUNTING{background:rgba(34,211,238,.12);color:var(--accent)}
+.type-TAX{background:rgba(245,158,11,.12);color:var(--amber)}
+.type-ERP{background:rgba(167,139,250,.12);color:var(--purple)}
+.pct-bar{display:inline-block;height:5px;border-radius:3px;background:var(--accent);min-width:2px;vertical-align:middle;margin-right:6px}
+.hl-row{background:rgba(34,211,238,.06)!important}
+
+/* Chatbot */
+#chatWidget{position:fixed;bottom:24px;right:24px;z-index:9999;font-family:'Outfit',sans-serif}
+#chatToggle{width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#22d3ee,#3b82f6);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(34,211,238,.35);transition:transform .2s,box-shadow .2s}
+#chatToggle:hover{transform:scale(1.08);box-shadow:0 6px 28px rgba(34,211,238,.45)}
+#chatToggle svg{width:26px;height:26px;fill:#fff}
+#chatPanel{display:none;position:fixed;bottom:90px;right:24px;width:420px;max-width:calc(100vw - 48px);height:540px;max-height:calc(100vh - 120px);background:#161b26;border:1px solid #1f2937;border-radius:16px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.5);flex-direction:column}
+#chatPanel.open{display:flex}
+#chatHeader{padding:14px 18px;background:#1a2030;border-bottom:1px solid #1f2937;display:flex;align-items:center;gap:10px;flex-shrink:0}
+#chatHeader .chat-title{font-size:14px;font-weight:700;color:#e5e7eb;flex:1}
+#chatHeader .chat-badge{font-size:10px;color:#22d3ee;background:rgba(34,211,238,.12);padding:2px 8px;border-radius:10px;font-weight:600}
+#chatClose{background:none;border:none;color:#6b7280;cursor:pointer;font-size:18px;padding:4px;line-height:1}
+#chatClose:hover{color:#e5e7eb}
+#chatMessages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+#chatMessages::-webkit-scrollbar{width:4px}
+#chatMessages::-webkit-scrollbar-thumb{background:#1f2937;border-radius:2px}
+.chat-msg{max-width:88%;padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.55;word-wrap:break-word}
+.chat-msg.user{align-self:flex-end;background:#3b82f6;color:#fff;border-bottom-right-radius:4px}
+.chat-msg.bot{align-self:flex-start;background:#1e293b;color:#e5e7eb;border-bottom-left-radius:4px}
+.chat-msg.bot strong{color:#22d3ee}
+#chatInput{display:flex;gap:8px;padding:12px 14px;border-top:1px solid #1f2937;background:#0f1419;flex-shrink:0}
+#chatInput input{flex:1;background:#1e293b;border:1px solid #1f2937;border-radius:8px;padding:10px 14px;color:#e5e7eb;font-size:13px;font-family:inherit;outline:none}
+#chatInput input:focus{border-color:#22d3ee}
+#chatInput input::placeholder{color:#4b5563}
+#chatInput button{padding:8px 16px;background:#22d3ee;border:none;border-radius:8px;color:#0c1117;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
+#chatInput button:hover{background:#06b6d4}
+.chat-suggestions{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 12px}
+.chat-sug{padding:6px 12px;border-radius:16px;background:rgba(34,211,238,.08);border:1px solid rgba(34,211,238,.2);color:#22d3ee;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s}
+.chat-sug:hover{background:rgba(34,211,238,.15);border-color:#22d3ee}
+
+/* Fullscreen overlay */
+#fsOverlay{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.85);display:none;flex-direction:column;align-items:center;justify-content:center;padding:24px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo">🌲 Boreal Soft <span>Inventory</span></div>
+  <div class="tab-bar">
+    <button class="tab-btn active" data-tab="inventory">Inventory</button>
+    <button class="tab-btn" data-tab="locations">Locations</button>
+    <button class="tab-btn" data-tab="turnover">Sales & Turnover</button>
+  </div>
+</div>
+
+<div class="section active" id="sec-inventory">
+  <div class="section-title">Inventory On Hand</div>
+  <div class="section-sub" id="invSub"></div>
+  <div class="kpi-strip" id="invKpis"></div>
+  <div class="chart-grid">
+    <div class="card"><div class="card-header">Distribution by Units</div><div class="card-body"><canvas id="chartPctPie"></canvas></div></div>
+    <div class="card"><div class="card-header">Distribution by Category</div><div class="card-body"><canvas id="chartTypePie"></canvas></div></div>
+  </div>
+  <div class="card"><div class="card-header">All Products (Non-Zero Stock)</div><div class="scrollable"><table><thead><tr><th>#</th><th>SKU</th><th>Product</th><th>Category</th><th class="num">Units</th><th class="num">Licenses</th><th class="num">%</th></tr></thead><tbody id="invTableBody"></tbody></table></div></div>
+</div>
+
+<div class="section" id="sec-locations">
+  <div class="section-title">Warehouse Breakdown</div>
+  <div class="section-sub" id="locSub"></div>
+  <div class="kpi-strip" id="locKpis"></div>
+  <div class="chart-grid">
+    <div class="card"><div class="card-header">Units by Warehouse</div><div class="card-body"><canvas id="chartLocPie"></canvas></div></div>
+    <div class="card"><div class="card-header">Top Products Across Warehouses</div><div class="card-body"><canvas id="chartLocBar" style="max-height:400px"></canvas></div></div>
+  </div>
+  <div id="locCards"></div>
+</div>
+
+<div class="section" id="sec-turnover">
+  <div class="section-title">Sales & Turnover</div>
+  <div class="section-sub" id="turnSub"></div>
+  <div class="kpi-strip" id="turnKpis"></div>
+  <div class="card"><div class="card-header">Turnover by Product</div><div class="scrollable"><table><thead><tr><th>Product</th><th class="num">% Sales</th><th class="num">Units Sold</th><th class="num">Revenue</th><th class="num">Margin</th><th class="num">Turnover</th><th class="num">Days on Hand</th><th class="num">Stockout Est.</th></tr></thead><tbody id="turnTableBody"></tbody></table></div></div>
+  <div class="chart-grid">
+    <div class="card"><div class="card-header">Top 10 by Revenue</div><div class="card-body"><canvas id="chartTopRev"></canvas></div></div>
+    <div class="card"><div class="card-header">Top 10 by Turnover Rate</div><div class="card-body"><canvas id="chartTopTurn"></canvas></div></div>
+  </div>
+</div>
+
+<!-- CHATBOT -->
+<div id="chatWidget">
+  <div id="chatPanel">
+    <div id="chatHeader">
+      <span style="font-size:18px">🤖</span>
+      <span class="chat-title">Boreal Soft Assistant</span>
+      <span class="chat-badge">AI</span>
+      <button id="chatClose" onclick="toggleChat()">✕</button>
+    </div>
+    <div id="chatMessages">
+      <div class="chat-msg bot">Hi! Ask me about your software inventory. Try:<br>• "Top 5 by revenue"<br>• "What's in Cloud-East?"<br>• "Stockout risks"<br>• "Sales % of QuickLedger Pro"</div>
+    </div>
+    <div class="chat-suggestions" id="chatSuggestions">
+      <span class="chat-sug" onclick="askSug(this)">Top 5 by revenue</span>
+      <span class="chat-sug" onclick="askSug(this)">Stockout risks</span>
+      <span class="chat-sug" onclick="askSug(this)">What's in Cloud-East?</span>
+    </div>
+    <div id="chatInput">
+      <input type="text" id="chatQ" placeholder="Ask about your inventory..." onkeydown="if(event.key==='Enter')sendChat()">
+      <button onclick="sendChat()">Ask</button>
+    </div>
+  </div>
+  <button id="chatToggle" onclick="toggleChat()" title="Ask about your data">
+    <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+  </button>
+</div>
+<div id="fsOverlay"></div>
+
+<script>
+// ══════════════════════════════════════════
+//  SAMPLE DATA — Software Products
+// ══════════════════════════════════════════
+const today=new Date();
+const ITEMS=[
+  {no:'ACC-1001',desc:'QuickLedger Pro',type:'ACCOUNTING',units:4820,licensesPerSeat:10,pct:0},
+  {no:'ACC-1002',desc:'CloudBooks Enterprise',type:'ACCOUNTING',units:3150,licensesPerSeat:5,pct:0},
+  {no:'ACC-1003',desc:'LedgerSync Basic',type:'ACCOUNTING',units:1890,licensesPerSeat:8,pct:0},
+  {no:'ACC-1004',desc:'PayrollMaster Suite',type:'ACCOUNTING',units:2740,licensesPerSeat:6,pct:0},
+  {no:'ACC-1005',desc:'InvoiceFlow Standard',type:'ACCOUNTING',units:980,licensesPerSeat:12,pct:0},
+  {no:'TAX-2001',desc:'TaxShield Professional',type:'TAX',units:3680,licensesPerSeat:4,pct:0},
+  {no:'TAX-2002',desc:'FileFast Corporate',type:'TAX',units:2210,licensesPerSeat:6,pct:0},
+  {no:'TAX-2003',desc:'ComplianceGuard Plus',type:'TAX',units:1540,licensesPerSeat:8,pct:0},
+  {no:'TAX-2004',desc:'AuditReady Express',type:'TAX',units:870,licensesPerSeat:10,pct:0},
+  {no:'TAX-2005',desc:'ReturnMax Home',type:'TAX',units:5100,licensesPerSeat:3,pct:0},
+  {no:'ERP-3001',desc:'Nexus ERP Standard',type:'ERP',units:1220,licensesPerSeat:15,pct:0},
+  {no:'ERP-3002',desc:'Prism Manufacturing',type:'ERP',units:890,licensesPerSeat:20,pct:0},
+  {no:'ERP-3003',desc:'SupplyChain360',type:'ERP',units:2050,licensesPerSeat:8,pct:0},
+  {no:'ERP-3004',desc:'Warehouse Logic Pro',type:'ERP',units:1680,licensesPerSeat:10,pct:0},
+  {no:'ERP-3005',desc:'Integrate Hub',type:'ERP',units:740,licensesPerSeat:12,pct:0},
+].sort((a,b)=>b.units-a.units);
+const totalUnits=ITEMS.reduce((s,i)=>s+i.units,0);
+ITEMS.forEach(i=>{i.pct=i.units/totalUnits;i.licenses=Math.round(i.units/i.licensesPerSeat)});
+
+const LOCATIONS=[
+  {loc:'Cloud-East',items:['ACC-1001','ACC-1002','TAX-2001','TAX-2005','ERP-3001','ERP-3003']},
+  {loc:'Cloud-West',items:['ACC-1001','ACC-1003','ACC-1004','TAX-2002','TAX-2003','ERP-3002','ERP-3004']},
+  {loc:'On-Prem DC',items:['ACC-1001','ACC-1005','TAX-2004','ERP-3001','ERP-3005']},
+  {loc:'Partner Hub',items:['TAX-2001','TAX-2005','ACC-1002','ERP-3003','ERP-3004']},
+];
+const LOC_ENTRIES=[];
+LOCATIONS.forEach(l=>{
+  l.items.forEach(sku=>{
+    const item=ITEMS.find(i=>i.no===sku);
+    if(item){
+      const qty=Math.round(item.units*(0.15+Math.random()*0.4));
+      LOC_ENTRIES.push({item:sku,location:l.loc,qty});
+    }
+  });
+});
+
+// Turnover / sales data
+const TURNOVER=ITEMS.map(item=>{
+  const sold=Math.round(item.units*(2+Math.random()*8));
+  const revenue=sold*(50+Math.random()*450);
+  const margin=8+Math.random()*55;
+  const turnover=1+Math.random()*25;
+  const doh=Math.round(5+Math.random()*90);
+  const soDate=new Date(today);soDate.setDate(soDate.getDate()+doh);
+  return{
+    no:item.no,desc:item.desc,type:item.type,
+    sold,revenue:Math.round(revenue),margin:Math.round(margin*10)/10,
+    turnover:Math.round(turnover*10)/10,stock:item.units,
+    doh,stockout:doh<60?soDate.toLocaleDateString():null,
+    salesPct:0
+  };
+}).sort((a,b)=>b.revenue-a.revenue);
+const totalRev=TURNOVER.reduce((s,t)=>s+t.revenue,0);
+TURNOVER.forEach(t=>{t.salesPct=Math.round(t.revenue/totalRev*1000)/10});
+
+// ══════════════════════════════════════════
+//  RENDERING
+// ══════════════════════════════════════════
+const COLORS=['#22d3ee','#3b82f6','#a78bfa','#10b981','#f59e0b','#ef4444','#ec4899','#06b6d4','#f97316','#84cc16','#6366f1','#14b8a6','#e11d48','#eab308','#0ea5e9'];
+const TYPE_COLORS={'ACCOUNTING':'#22d3ee','TAX':'#f59e0b','ERP':'#a78bfa'};
+const _f=n=>n==null?'—':Number(n).toLocaleString('en-US',{maximumFractionDigits:1});
+const _fc=n=>n==null?'—':'$'+Number(n).toLocaleString('en-US',{maximumFractionDigits:0});
+let charts=[];
+function makeChart(id,cfg){const el=document.getElementById(id);if(!el)return;const c=new Chart(el,cfg);charts.push(c);return c}
+
+function renderInventory(){
+  const tp=ITEMS.reduce((s,i)=>s+i.licenses,0);
+  document.getElementById('invSub').textContent=`${ITEMS.length} products · ${_f(totalUnits)} total units · ${_f(tp)} total licenses`;
+  document.getElementById('invKpis').innerHTML=`
+    <div class="kpi"><div class="kpi-label">Products</div><div class="kpi-val cyan">${ITEMS.length}</div></div>
+    <div class="kpi"><div class="kpi-label">Total Units</div><div class="kpi-val blue">${_f(totalUnits)}</div></div>
+    <div class="kpi"><div class="kpi-label">Total Licenses</div><div class="kpi-val green">${_f(tp)}</div></div>
+    <div class="kpi"><div class="kpi-label">Categories</div><div class="kpi-val purple">3</div></div>`;
+  document.getElementById('invTableBody').innerHTML=ITEMS.map((it,i)=>{
+    const hl=it.pct>0.1;const bw=Math.max(2,it.pct*200);
+    return`<tr class="${hl?'hl-row':''}"><td>${i+1}</td><td style="font-family:'JetBrains Mono';font-size:12px">${it.no}</td><td>${it.desc}</td><td><span class="type-badge type-${it.type}">${it.type}</span></td><td class="num">${_f(it.units)}</td><td class="num">${_f(it.licenses)}</td><td class="num"><span class="pct-bar" style="width:${bw}px"></span>${(it.pct*100).toFixed(1)}%</td></tr>`;
+  }).join('');
+  const top=ITEMS.slice(0,8);
+  makeChart('chartPctPie',{type:'doughnut',data:{labels:top.map(i=>i.desc),datasets:[{data:top.map(i=>i.units),backgroundColor:top.map((_,i)=>COLORS[i]),borderWidth:0}]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{position:'right',labels:{color:'#9ca3af',font:{size:11,family:'Outfit'},boxWidth:10,padding:8}}}}});
+  const tm={};ITEMS.forEach(i=>{if(!tm[i.type])tm[i.type]=0;tm[i.type]+=i.units});
+  const te=Object.entries(tm).sort((a,b)=>b[1]-a[1]);
+  makeChart('chartTypePie',{type:'doughnut',data:{labels:te.map(([t])=>t),datasets:[{data:te.map(([,v])=>v),backgroundColor:te.map(([t])=>TYPE_COLORS[t]),borderWidth:0}]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{position:'right',labels:{color:'#9ca3af',font:{size:11,family:'Outfit'},boxWidth:10,padding:8}}}}});
+}
+
+function renderLocations(){
+  const locS=LOCATIONS.map(l=>{
+    const entries=LOC_ENTRIES.filter(e=>e.location===l.loc);
+    const total=entries.reduce((s,e)=>s+e.qty,0);
+    return{loc:l.loc,entries,total,count:entries.length};
+  }).sort((a,b)=>b.total-a.total);
+  const gt=locS.reduce((s,l)=>s+l.total,0);
+  document.getElementById('locSub').textContent=`${locS.length} warehouses · ${_f(gt)} total units`;
+  document.getElementById('locKpis').innerHTML=`
+    <div class="kpi"><div class="kpi-label">Warehouses</div><div class="kpi-val cyan">${locS.length}</div></div>
+    <div class="kpi"><div class="kpi-label">Total Units</div><div class="kpi-val blue">${_f(gt)}</div></div>
+    <div class="kpi"><div class="kpi-label">Largest</div><div class="kpi-val green">${locS[0].loc}</div></div>
+    <div class="kpi"><div class="kpi-label">Products Tracked</div><div class="kpi-val purple">${new Set(LOC_ENTRIES.map(e=>e.item)).size}</div></div>`;
+  makeChart('chartLocPie',{type:'doughnut',data:{labels:locS.map(l=>l.loc),datasets:[{data:locS.map(l=>l.total),backgroundColor:locS.map((_,i)=>COLORS[i]),borderWidth:0}]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{position:'right',labels:{color:'#9ca3af',font:{size:11,family:'Outfit'},boxWidth:10,padding:8}}}}});
+  const topItems=[...new Set(LOC_ENTRIES.map(e=>e.item))].slice(0,8);
+  const ds=locS.map((l,li)=>({label:l.loc,data:topItems.map(sku=>{const e=LOC_ENTRIES.find(x=>x.item===sku&&x.location===l.loc);return e?e.qty:0}),backgroundColor:COLORS[li],borderRadius:3}));
+  makeChart('chartLocBar',{type:'bar',data:{labels:topItems,datasets:ds},options:{responsive:true,indexAxis:'y',maintainAspectRatio:false,scales:{x:{stacked:true,grid:{color:'#1f2937'},ticks:{color:'#9ca3af'}},y:{stacked:true,grid:{display:false},ticks:{color:'#9ca3af',font:{size:10}}}},plugins:{legend:{position:'top',labels:{color:'#9ca3af',font:{size:10},boxWidth:10,padding:6}}}}});
+  let cardsHTML='';
+  locS.forEach((l,li)=>{
+    const sorted=l.entries.sort((a,b)=>b.qty-a.qty);
+    cardsHTML+=`<div class="card" style="margin-bottom:16px"><div class="card-header">${l.loc} — ${_f(l.total)} units · ${l.count} products</div><div class="card-body" style="padding:0"><table><thead><tr><th>SKU</th><th>Product</th><th class="num">Units</th></tr></thead><tbody>${sorted.map(e=>{const it=ITEMS.find(i=>i.no===e.item);return`<tr><td style="font-family:'JetBrains Mono';font-size:12px">${e.item}</td><td>${it?it.desc:''}</td><td class="num">${_f(e.qty)}</td></tr>`}).join('')}</tbody></table></div></div>`;
+  });
+  document.getElementById('locCards').innerHTML=cardsHTML;
+}
+
+function renderTurnover(){
+  const withSales=TURNOVER.filter(t=>t.revenue>0);
+  const oM=totalRev>0?((totalRev-TURNOVER.reduce((s,t)=>s+t.revenue*(1-t.margin/100),0))/totalRev*100):0;
+  document.getElementById('turnSub').textContent=`${TURNOVER.length} products · ${_fc(totalRev)} total revenue`;
+  document.getElementById('turnKpis').innerHTML=`
+    <div class="kpi"><div class="kpi-label">Products</div><div class="kpi-val cyan">${TURNOVER.length}</div></div>
+    <div class="kpi"><div class="kpi-label">Total Revenue</div><div class="kpi-val green">${_fc(totalRev)}</div></div>
+    <div class="kpi"><div class="kpi-label">Avg Margin</div><div class="kpi-val blue">${(TURNOVER.reduce((s,t)=>s+t.margin,0)/TURNOVER.length).toFixed(1)}%</div></div>
+    <div class="kpi"><div class="kpi-label">Total Stock</div><div class="kpi-val purple">${_f(totalUnits)}</div></div>`;
+  document.getElementById('turnTableBody').innerHTML=withSales.map(t=>{
+    const mc=t.margin>=30?'var(--green)':t.margin>=15?'var(--amber)':'var(--red)';
+    const dohC=t.doh<=14?'var(--red)':t.doh<=30?'var(--amber)':'var(--green)';
+    const bw=Math.min(60,t.salesPct*2.5);
+    return`<tr><td><strong>${t.no}</strong> — ${t.desc}</td><td class="num">${t.salesPct}%<span class="pct-bar" style="width:${bw}px"></span></td><td class="num">${_f(t.sold)}</td><td class="num" style="color:var(--green)">${_fc(t.revenue)}</td><td class="num" style="color:${mc}">${t.margin}%</td><td class="num" style="color:var(--accent)">${t.turnover}x</td><td class="num" style="color:${dohC};font-weight:600">${t.doh}d</td><td class="num" style="color:${t.stockout?'var(--amber)':'var(--textDim)'};font-size:11px"">${t.stockout||'—'}</td></tr>`;
+  }).join('');
+  const t10=withSales.slice(0,10);
+  makeChart('chartTopRev',{type:'bar',data:{labels:t10.map(t=>t.no),datasets:[{data:t10.map(t=>t.revenue),backgroundColor:'#10b981',borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'#1f2937'},ticks:{color:'#9ca3af',callback:v=>v>=1e6?'$'+(v/1e6).toFixed(1)+'M':v>=1e3?'$'+(v/1e3).toFixed(0)+'K':'$'+v}},y:{grid:{display:false},ticks:{color:'#9ca3af',font:{size:10}}}}}});
+  const byT=[...withSales].sort((a,b)=>b.turnover-a.turnover).slice(0,10);
+  makeChart('chartTopTurn',{type:'bar',data:{labels:byT.map(t=>t.no),datasets:[{data:byT.map(t=>t.turnover),backgroundColor:'#3b82f6',borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'#1f2937'},ticks:{color:'#9ca3af'}},y:{grid:{display:false},ticks:{color:'#9ca3af',font:{size:10}}}}}});
+}
+
+// Tabs
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+    document.getElementById('sec-'+btn.dataset.tab).classList.add('active');
+  });
+});
+
+renderInventory();renderLocations();renderTurnover();
+
+// ══════════════════════════════════════════
+//  CHATBOT — Rule-based, local, no API
+// ══════════════════════════════════════════
+function toggleChat(){document.getElementById('chatPanel').classList.toggle('open');if(document.getElementById('chatPanel').classList.contains('open'))document.getElementById('chatQ').focus()}
+function askSug(el){document.getElementById('chatQ').value=el.textContent;sendChat();document.getElementById('chatSuggestions').style.display='none'}
+
+const _esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function _addMsg(html,cls){const m=document.getElementById('chatMessages');m.innerHTML+=`<div class="chat-msg ${cls}">${html}</div>`;m.scrollTop=m.scrollHeight}
+
+let _lastContext=null;
+let _chatChartId=0;
+
+function normalize(q){return q.toLowerCase().replace(/[?!.,;:'"]/g,'').replace(/\b(what|whats|how|is|are|the|a|an|of|for|in|at|by|my|me|can|you|tell|show|give|do|does|please|about|much|many|i|it|its|this|that|to|on|with|has|have|get|find|list|could|would)\b/g,' ').replace(/\s+/g,' ').trim()}
+
+function findItems(q){
+  const cleaned=q.replace(/[•·—]/g,' ').replace(/\s+/g,' ').trim();
+  const codeMatch=cleaned.match(/\b([A-Z]{2,4}-\d{4})\b/i);
+  if(codeMatch){const code=codeMatch[1].toUpperCase();const exact=ITEMS.find(i=>i.no===code);if(exact)return[exact]}
+  const norm=normalize(cleaned);const words=norm.split(' ').filter(w=>w.length>1);if(!words.length)return[];
+  return ITEMS.map(item=>{const s=(item.no+' '+item.desc).toLowerCase();let score=0;words.forEach(w=>{if(s.includes(w))score+=w.length});if(norm.includes(item.no.toLowerCase()))score+=20;const sig=words.filter(w=>w.length>2);if(sig.length>=2&&sig.every(w=>s.includes(w)))score+=sig.length*5;return{item,score}}).filter(s=>s.score>3).sort((a,b)=>b.score-a.score).map(s=>s.item);
+}
+
+function getLocData(name){
+  const norm=name.toLowerCase();
+  const entries=LOC_ENTRIES.filter(e=>e.location.toLowerCase()===norm);
+  if(!entries.length){const match=LOCATIONS.find(l=>l.loc.toLowerCase().includes(norm));if(match)return getLocData(match.loc);return null}
+  const items=entries.map(e=>{const it=ITEMS.find(i=>i.no===e.item);return{item:e.item,desc:it?it.desc:'',qty:e.qty}}).sort((a,b)=>b.qty-a.qty);
+  return{location:entries[0].location,total:items.reduce((s,i)=>s+i.qty,0),items};
+}
+
+function renderChatChart(type,title,labels,data,colors){
+  _chatChartId++;const cid='cc'+_chatChartId;
+  const wrap=document.createElement('div');wrap.className='chat-msg bot';
+  wrap.innerHTML=`<strong>${title}</strong><div style="margin-top:8px;cursor:pointer" onclick="openFS('chart','${cid}')" title="Click to expand"><canvas id="${cid}" style="max-height:200px"></canvas></div><div style="font-size:10px;color:#6b7280;margin-top:4px">Click chart to expand</div>`;
+  document.getElementById('chatMessages').appendChild(wrap);document.getElementById('chatMessages').scrollTop=99999;
+  setTimeout(()=>{const el=document.getElementById(cid);if(!el)return;const ct=type==='pie'?'doughnut':'bar';const ch=new Chart(el,{type:ct,data:{labels,datasets:[{data,backgroundColor:colors||labels.map((_,i)=>COLORS[i%COLORS.length]),borderWidth:0,borderRadius:ct==='bar'?4:0}]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:type==='pie',position:'right',labels:{color:'#9ca3af',font:{size:10},boxWidth:8,padding:4}}},scales:ct==='bar'?{y:{grid:{color:'#1f2937'},ticks:{color:'#9ca3af',font:{size:9}}},x:{grid:{display:false},ticks:{color:'#9ca3af',font:{size:9},maxRotation:45}}}:undefined}});el._chartConfig={type,title,labels,data,colors:colors||labels.map((_,i)=>COLORS[i%COLORS.length])}},50);
+}
+
+function renderChatTable(title,headers,rows){
+  _chatChartId++;const tid='ct'+_chatChartId;
+  let html=`<strong>${title}</strong><div style="margin-top:8px;max-height:180px;overflow-y:auto;cursor:pointer" onclick="openFS('table','${tid}')" title="Click to expand">`;
+  html+=`<table id="${tid}" style="width:100%;font-size:11px;border-collapse:collapse"><thead><tr>${headers.map(h=>`<th style="padding:4px 6px;text-align:left;color:#6b7280;font-size:10px;border-bottom:1px solid #1f2937">${h}</th>`).join('')}</tr></thead><tbody>`;
+  rows.slice(0,8).forEach(r=>{html+=`<tr>${r.map(c=>`<td style="padding:3px 6px;border-bottom:1px solid rgba(31,41,55,.4);font-size:11px">${c}</td>`).join('')}</tr>`});
+  if(rows.length>8)html+=`<tr><td colspan="${headers.length}" style="padding:4px;color:#6b7280;font-size:10px">...and ${rows.length-8} more</td></tr>`;
+  html+=`</tbody></table></div><div style="font-size:10px;color:#6b7280;margin-top:4px">Click table to expand</div>`;
+  const wrap=document.createElement('div');wrap.className='chat-msg bot';wrap.innerHTML=html;
+  document.getElementById('chatMessages').appendChild(wrap);document.getElementById('chatMessages').scrollTop=99999;
+  const el=document.getElementById(tid);if(el)el._tableData={title,headers,rows};
+}
+
+function openFS(mode,id){
+  const ov=document.getElementById('fsOverlay');ov.style.display='flex';
+  if(mode==='chart'){
+    const src=document.getElementById(id);const cfg=src?._chartConfig;if(!cfg){ov.style.display='none';return}
+    ov.innerHTML=`<div style="background:#161b26;border-radius:16px;padding:24px;width:90vw;max-width:900px;max-height:85vh;display:flex;flex-direction:column"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h3 style="color:#e5e7eb;font-size:18px;font-weight:700">${cfg.title}</h3><div style="display:flex;gap:8px"><button onclick="dlChart()" style="padding:8px 16px;border-radius:8px;background:#22d3ee;color:#0c1117;border:none;font-size:13px;font-weight:700;cursor:pointer">📥 Download PNG</button><button onclick="closeFS()" style="padding:8px 16px;border-radius:8px;background:#1e293b;color:#9ca3af;border:1px solid #1f2937;font-size:13px;font-weight:600;cursor:pointer">✕ Close</button></div></div><div style="flex:1;min-height:0"><canvas id="fsChart" style="width:100%;height:100%"></canvas></div></div>`;
+    setTimeout(()=>{const ct=cfg.type==='pie'?'doughnut':'bar';new Chart(document.getElementById('fsChart'),{type:ct,data:{labels:cfg.labels,datasets:[{data:cfg.data,backgroundColor:cfg.colors,borderWidth:0,borderRadius:ct==='bar'?4:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:cfg.type==='pie',position:'right',labels:{color:'#e5e7eb',font:{size:12},boxWidth:12,padding:10}}},scales:ct==='bar'?{y:{grid:{color:'#1f2937'},ticks:{color:'#9ca3af'}},x:{grid:{display:false},ticks:{color:'#9ca3af',maxRotation:45}}}:undefined}})},100);
+  }else{
+    const src=document.getElementById(id);const td=src?._tableData;if(!td){ov.style.display='none';return}
+    let th=`<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr>${td.headers.map(h=>`<th style="padding:8px 12px;text-align:left;color:#6b7280;font-size:11px;text-transform:uppercase;border-bottom:2px solid #1f2937">${h}</th>`).join('')}</tr></thead><tbody>`;
+    td.rows.forEach((r,i)=>{th+=`<tr style="border-bottom:1px solid rgba(31,41,55,.4);${i%2?'background:rgba(255,255,255,.02)':''}">${r.map(c=>`<td style="padding:6px 12px">${c}</td>`).join('')}</tr>`});
+    th+=`</tbody></table>`;
+    ov.innerHTML=`<div style="background:#161b26;border-radius:16px;padding:24px;width:90vw;max-width:1000px;max-height:85vh;display:flex;flex-direction:column"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h3 style="color:#e5e7eb;font-size:18px;font-weight:700">${td.title}</h3><div style="display:flex;gap:8px"><button onclick="dlCSV('${id}')" style="padding:8px 16px;border-radius:8px;background:#10b981;color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer">📥 Download CSV</button><button onclick="closeFS()" style="padding:8px 16px;border-radius:8px;background:#1e293b;color:#9ca3af;border:1px solid #1f2937;font-size:13px;font-weight:600;cursor:pointer">✕ Close</button></div></div><div style="flex:1;overflow-y:auto;color:#e5e7eb">${th}</div></div>`;
+  }
+}
+function closeFS(){document.getElementById('fsOverlay').style.display='none'}
+function dlChart(){const c=document.getElementById('fsChart');if(!c)return;const a=document.createElement('a');a.download='boreal-chart.png';a.href=c.toDataURL('image/png');a.click()}
+function dlCSV(id){const el=document.getElementById(id);if(!el||!el._tableData)return;const td=el._tableData;let csv=td.headers.join(',')+'\n';td.rows.forEach(r=>{csv+=r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')+'\n'});const a=document.createElement('a');a.download='boreal-data.csv';a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.click()}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeFS()});
+
+// ── Intent processing ──
+async function processQuery(raw){
+  const q=normalize(raw);const lower=raw.toLowerCase().trim().replace(/[!?.,']+$/,'');
+  
+  // Greetings
+  if([/^(hello|hi|hey|howdy|sup|yo)\b/,/^good\s*(morning|afternoon|evening|day)/,/^(morning|afternoon|evening)\b/,/^what'?s?\s*(up|good|happening)/,/^how'?s?\s*(it going|are you)/].some(p=>p.test(lower))){
+    const hr=new Date().getHours();return`👋 Good ${hr<12?'morning':hr<17?'afternoon':'evening'}! Ask me anything about your software inventory.`}
+  if(['thank','thanks','thx','cheers'].some(t=>lower.includes(t)))return"You're welcome!";
+  if(q.includes('help')||lower==='?')return'I can answer about:<br>• <strong>Inventory:</strong> stock, units, top products<br>• <strong>Locations:</strong> what\'s in each warehouse<br>• <strong>Sales:</strong> revenue, margins, turnover, stockout<br><br>Try: "top 5 by revenue", "what\'s in Cloud-East?", "stockout risks"';
+
+  // Chart
+  const wantChart=lower.match(/\b(chart|pie|graph|plot|bar chart|visuali)/);
+  const followChart=lower.match(/^(in a |as a )?(graph|chart|pie|bar|plot)/);
+  if(wantChart||followChart){
+    const ct=lower.match(/pie|donut/)?'pie':'bar';
+    if(followChart&&_lastContext&&q.length<25){
+      if(_lastContext.data&&_lastContext.data.labels){renderChatChart(ct,_lastContext.data.title||'Chart',_lastContext.data.labels,_lastContext.data.values);return null}
+    }
+    if(q.match(/revenue|sales|sell|best/)){renderChatChart(ct,'Top 10 by Revenue',TURNOVER.slice(0,10).map(t=>t.no),TURNOVER.slice(0,10).map(t=>t.revenue));return null}
+    if(q.match(/stockout|risk/)){const r=TURNOVER.filter(t=>t.stockout).sort((a,b)=>a.doh-b.doh).slice(0,10);renderChatChart('bar','Stockout Risk',r.map(t=>t.no),r.map(t=>t.doh),r.map(t=>t.doh<=14?'#ef4444':t.doh<=30?'#f59e0b':'#3b82f6'));return null}
+    if(q.match(/type|category/)){const tm={};ITEMS.forEach(i=>{tm[i.type]=(tm[i.type]||0)+i.units});const s=Object.entries(tm).sort((a,b)=>b[1]-a[1]);renderChatChart('pie','By Category',s.map(([t])=>t),s.map(([,v])=>v));return null}
+    if(q.match(/location|warehouse/)){const lm={};LOC_ENTRIES.forEach(e=>{lm[e.location]=(lm[e.location]||0)+e.qty});const s=Object.entries(lm).sort((a,b)=>b[1]-a[1]);renderChatChart('pie','By Warehouse',s.map(([l])=>l),s.map(([,v])=>v));return null}
+    renderChatChart(ct,'Top 10 by Units',ITEMS.slice(0,10).map(i=>i.no),ITEMS.slice(0,10).map(i=>i.units));return null;
+  }
+
+  // Table
+  const wantTable=lower.match(/\b(table|csv|export|download|spreadsheet)\b/);
+  const followTable=lower.match(/^(in a |as a )?(table|csv)/);
+  if(wantTable||followTable){
+    if(followTable&&_lastContext&&q.length<20&&_lastContext.data&&_lastContext.data.tableRows){renderChatTable(_lastContext.data.title,_lastContext.data.tableHeaders,_lastContext.data.tableRows);return null}
+    if(q.match(/revenue|sales|sell|best/)){const h=['#','SKU','Product','Revenue','Margin','Sales %'];const r=TURNOVER.slice(0,20).map((t,i)=>[i+1,t.no,t.desc,_fc(t.revenue),t.margin+'%',t.salesPct+'%']);renderChatTable('Top by Revenue',h,r);return null}
+    if(q.match(/stockout|risk/)){const h=['SKU','Product','Days Left','Est.','Stock'];const r=TURNOVER.filter(t=>t.stockout).sort((a,b)=>a.doh-b.doh).map(t=>[t.no,t.desc,t.doh+'d',t.stockout,_f(t.stock)]);renderChatTable('Stockout Risks',h,r);return null}
+    const h=['#','SKU','Product','Category','Units'];const r=ITEMS.map((it,i)=>[i+1,it.no,it.desc,it.type,_f(it.units)]);renderChatTable('All Products',h,r);return null;
+  }
+
+  // Total / summary
+  if(q.match(/total|summary|overview|inventory$/)){return`<strong>Inventory Summary:</strong><br>• ${ITEMS.length} products<br>• ${_f(totalUnits)} total units<br>• Categories: ACCOUNTING, TAX, ERP<br>• Total revenue: ${_fc(totalRev)}`}
+
+  // Stockout
+  if(q.match(/stockout|stock out|running low|risk|danger|critical/)){
+    const atRisk=TURNOVER.filter(t=>t.stockout).sort((a,b)=>a.doh-b.doh);
+    const nM=q.match(/top\s*(\d+)/);const n=nM?parseInt(nM[1]):10;
+    _lastContext={type:'stockout',data:{labels:atRisk.slice(0,15).map(t=>t.no),values:atRisk.slice(0,15).map(t=>t.doh),title:'Stockout Risk'}};
+    if(!atRisk.length)return'✅ No stockout risks.';
+    let r=`⚠️ <strong>${atRisk.length} products at risk:</strong><br>`;
+    const now=new Date();
+    atRisk.slice(0,n).forEach(t=>{const so=new Date(t.stockout);const past=so<now;r+=`• <strong>${t.no}</strong> — ${t.desc}: ${past?'⛔ ran out '+t.stockout:t.doh+'d left, est. '+t.stockout}<br>`});
+    if(atRisk.length>n)r+=`<br>...and ${atRisk.length-n} more.`;return r;
+  }
+
+  // Top N
+  const topN=q.match(/top\s*(\d+)?/);
+  if(topN||q.match(/largest|biggest|most|best|highest|fewest|lowest|bottom|least/)){
+    const n=topN&&topN[1]?parseInt(topN[1]):5;
+    const rev=q.match(/revenue|sales|sell|selling|best/);const marg=q.match(/margin|profit/);const turn=q.match(/turnover|fast/);const rev2=q.match(/fewest|lowest|bottom|least|worst/);
+    if(rev||marg||turn){
+      let sorted,label;
+      if(marg){sorted=[...TURNOVER].sort((a,b)=>rev2?a.margin-b.margin:b.margin-a.margin);label='margin'}
+      else if(turn){sorted=[...TURNOVER].sort((a,b)=>rev2?a.turnover-b.turnover:b.turnover-a.turnover);label='turnover'}
+      else{sorted=[...TURNOVER].sort((a,b)=>rev2?a.revenue-b.revenue:b.revenue-a.revenue);label='revenue'}
+      const top=sorted.slice(0,n);
+      _lastContext={type:'top_rev',data:{labels:top.map(t=>t.no),values:top.map(t=>label==='margin'?t.margin:label==='turnover'?t.turnover:t.revenue),title:(rev2?'Bottom':'Top')+' '+n+' by '+label,tableHeaders:['#','SKU','Product','Value'],tableRows:top.map((t,i)=>[i+1,t.no,t.desc,label==='margin'?t.margin+'%':label==='turnover'?t.turnover+'x':_fc(t.revenue)])}};
+      let r=`<strong>${rev2?'Bottom':'Top'} ${top.length} by ${label}:</strong><br>`;
+      top.forEach((t,i)=>{r+=`${i+1}. <strong>${t.no}</strong> — ${t.desc}: ${label==='margin'?t.margin+'%':label==='turnover'?t.turnover+'x':_fc(t.revenue)}<br>`});return r;
+    }
+    if(rev2){
+      const bottom=[...ITEMS].sort((a,b)=>a.units-b.units).slice(0,n);
+      _lastContext={type:'top_units',data:{labels:bottom.map(i=>i.no),values:bottom.map(i=>i.units),title:'Bottom '+n+' by Units'}};
+      let r=`<strong>Bottom ${bottom.length} by stock:</strong><br>`;bottom.forEach((it,i)=>{r+=`${i+1}. <strong>${it.no}</strong> — ${it.desc}: ${_f(it.units)} units<br>`});return r;
+    }
+    // Follow-up "top 10" with context
+    if(_lastContext&&!rev&&!marg&&!turn&&!rev2){
+      if(_lastContext.type==='stockout'){
+        const atRisk=TURNOVER.filter(t=>t.stockout).sort((a,b)=>a.doh-b.doh).slice(0,n);
+        let r=`⚠️ <strong>Top ${atRisk.length} stockout risks:</strong><br>`;atRisk.forEach(t=>{r+=`• <strong>${t.no}</strong> — ${t.desc}: ${t.doh}d left<br>`});return r;
+      }
+    }
+    const top=ITEMS.slice(0,n);
+    _lastContext={type:'top_units',data:{labels:top.map(i=>i.no),values:top.map(i=>i.units),title:'Top '+n+' by Units',tableHeaders:['#','SKU','Product','Units'],tableRows:top.map((it,i)=>[i+1,it.no,it.desc,_f(it.units)])}};
+    let r=`<strong>Top ${top.length} by stock:</strong><br>`;top.forEach((it,i)=>{r+=`${i+1}. <strong>${it.no}</strong> — ${it.desc}: ${_f(it.units)} units<br>`});return r;
+  }
+
+  // Location
+  const allLocs=LOCATIONS.map(l=>l.loc);
+  const locMatch=allLocs.find(l=>lower.includes(l.toLowerCase()));
+  if(locMatch||q.match(/location|warehouse|where|whats in|stored/)){
+    if(locMatch){
+      // Check if item + location
+      const items=findItems(raw);
+      if(items.length===1){
+        const e=LOC_ENTRIES.filter(x=>x.item===items[0].no);
+        if(e.length){_lastContext={type:'item',data:{itemNo:items[0].no,desc:items[0].desc}};let r=`<strong>${items[0].no}</strong> — ${items[0].desc}<br><br>`;e.sort((a,b)=>b.qty-a.qty);e.forEach(x=>{r+=`• <strong>${x.location}</strong>: ${_f(x.qty)} units<br>`});r+=`<br>Total: <strong>${_f(e.reduce((s,x)=>s+x.qty,0))} units</strong>`;return r}
+      }
+      const loc=getLocData(locMatch);
+      if(loc){_lastContext={type:'location',data:{title:loc.location,labels:loc.items.map(i=>i.item),values:loc.items.map(i=>i.qty)}};let r=`<strong>${loc.location}</strong>: ${_f(loc.total)} units, ${loc.items.length} products<br><br>`;loc.items.slice(0,10).forEach(i=>{r+=`• <strong>${i.item}</strong> — ${i.desc}: ${_f(i.qty)} units<br>`});if(loc.items.length>10)r+=`<br>...and ${loc.items.length-10} more.`;return r}
+    }
+    let r=`<strong>${allLocs.length} warehouses:</strong><br>`;
+    allLocs.forEach(l=>{const t=LOC_ENTRIES.filter(e=>e.location===l).reduce((s,e)=>s+e.qty,0);r+=`• <strong>${l}</strong>: ${_f(t)} units<br>`});return r;
+  }
+
+  // Category
+  const types=['ACCOUNTING','TAX','ERP'];const typeMatch=types.find(t=>q.includes(t.toLowerCase()));
+  if(typeMatch||q.match(/type|category/)){
+    if(typeMatch){const items=ITEMS.filter(i=>i.type===typeMatch);let r=`<strong>${typeMatch}</strong>: ${items.length} products, ${_f(items.reduce((s,i)=>s+i.units,0))} units<br><br>`;items.forEach(i=>{r+=`• <strong>${i.no}</strong> — ${i.desc}: ${_f(i.units)} units<br>`});return r}
+    let r='<strong>Categories:</strong><br>';types.forEach(t=>{const items=ITEMS.filter(i=>i.type===t);r+=`• <strong>${t}</strong>: ${items.length} products, ${_f(items.reduce((s,i)=>s+i.units,0))} units<br>`});return r;
+  }
+
+  // Item-specific + location
+  if(q.match(/location|all location|where|stored/)){
+    const items=findItems(raw);
+    if(items.length===1){
+      const e=LOC_ENTRIES.filter(x=>x.item===items[0].no);
+      if(e.length){_lastContext={type:'item',data:{itemNo:items[0].no,desc:items[0].desc}};let r=`<strong>${items[0].no}</strong> — ${items[0].desc}<br><br>`;e.sort((a,b)=>b.qty-a.qty);e.forEach(x=>{r+=`• <strong>${x.location}</strong>: ${_f(x.qty)} units<br>`});r+=`<br>Total: <strong>${_f(e.reduce((s,x)=>s+x.qty,0))} units</strong>`;return r}
+    }
+  }
+
+  // Item query
+  const matches=findItems(raw);
+  if(matches.length>0){
+    const wantSales=q.match(/sales|revenue|percent|%|pct/);const wantMargin=q.match(/margin|profit/);const wantTurnover=q.match(/turnover|rotation/);const wantDoh=q.match(/days|doh|hand|supply|burn|run out|when/);const wantStock=q.match(/stock|units|how much|quantity/);
+    if(matches.length>1){
+      const exact=matches.filter(m=>{const fn=(m.no+' '+m.desc).toLowerCase();return normalize(raw).split(' ').filter(w=>w.length>2).every(w=>fn.includes(w))});
+      if(exact.length===1){matches.splice(0,matches.length,...exact)}
+      else if(matches.length<=5){let r=`Found <strong>${matches.length} matches</strong>:<br><br>`;matches.forEach(m=>{r+=`• <strong>${m.no}</strong> — ${m.desc}<br>`});r+='<br>Be more specific.';return r}
+      else{let r=`Found <strong>${matches.length} matches</strong>. Top:<br><br>`;matches.slice(0,5).forEach(m=>{r+=`• <strong>${m.no}</strong> — ${m.desc}<br>`});r+='<br>Be more specific.';return r}
+    }
+    if(matches.length===1){
+      const item=matches[0];const t=TURNOVER.find(x=>x.no===item.no);
+      _lastContext={type:'item',data:{itemNo:item.no,desc:item.desc}};
+      let r=`<strong>${item.no}</strong> — ${item.desc}<br><br>`;
+      if(wantSales&&t){r+=`📊 Sales: <strong>${t.salesPct}%</strong> of total (${_fc(t.revenue)})`;return r}
+      if(wantMargin&&t){r+=`💰 Margin: <strong>${t.margin}%</strong>`;return r}
+      if(wantTurnover&&t){r+=`🔄 Turnover: <strong>${t.turnover}x</strong>/year`;return r}
+      if(wantDoh&&t){r+=`📅 Days on Hand: <strong>${t.doh}d</strong><br>Stock: ${_f(t.stock)} units<br>${t.stockout?'⚠️ Stockout: '+t.stockout:'✅ No stockout'}`;return r}
+      if(wantStock){r+=`📦 Stock: <strong>${_f(item.units)} units</strong> (${(item.pct*100).toFixed(1)}%)<br>Category: ${item.type}`;return r}
+      // Full overview
+      r+=`📦 Stock: ${_f(item.units)} units (${(item.pct*100).toFixed(1)}%)<br>Category: ${item.type}<br>`;
+      if(t){r+=`💰 Revenue: ${_fc(t.revenue)} (${t.salesPct}%)<br>📊 Margin: ${t.margin}%<br>🔄 Turnover: ${t.turnover}x/year<br>📅 Days on Hand: ${t.doh}d<br>${t.stockout?'⚠️ Stockout: '+t.stockout:'✅ No stockout'}`}
+      return r;
+    }
+  }
+
+  // Context follow-up
+  if(_lastContext&&_lastContext.type==='item'&&lower.match(/run out|when|stockout|how long/)){
+    const t=TURNOVER.find(x=>x.no===_lastContext.data.itemNo);
+    if(t)return`<strong>${t.no}</strong> — ${t.desc}<br><br>📅 Days on Hand: <strong>${t.doh}d</strong><br>${t.stockout?'⚠️ Stockout: '+t.stockout:'✅ No stockout'}`;
+  }
+
+  // DOH
+  if(lower.match(/days?\s*on\s*hand|doh/)){
+    if(q.match(/list|rank|sort|all/)){
+      const sorted=[...TURNOVER].sort((a,b)=>a.doh-b.doh);
+      let r='<strong>Items by Days on Hand:</strong><br>';sorted.slice(0,15).forEach((t,i)=>{r+=`${i+1}. <strong>${t.no}</strong> — ${t.desc}: ${t.doh}d<br>`});return r;
+    }
+    return'Specify an item: "days on hand ACC-1001" or "list items by days on hand"';
+  }
+
+  if(q.match(/^turnover$/))return'Try: "turnover of ACC-1001" or "top 10 by turnover"';
+
+  return"I can answer questions about your Boreal Soft inventory — stock, locations, sales, margins, turnover, and stockout risks.<br><br>Try: <strong>\"top 5 by revenue\"</strong>, <strong>\"what's in Cloud-East?\"</strong>, or <strong>\"stockout risks\"</strong>";
+}
+
+async function sendChat(){
+  const input=document.getElementById('chatQ');const q=input.value.trim();if(!q)return;input.value='';
+  _addMsg(_esc(q),'user');
+  try{const a=await processQuery(q);if(a!==null)_addMsg(a,'bot')}catch(e){_addMsg('Something went wrong. Try rephrasing.','bot');console.error(e)}
+}
+</script>
+</body>
+</html>
